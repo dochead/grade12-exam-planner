@@ -79,6 +79,7 @@ name = "grade12-exam-planner"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "reportlab" },
 ]
 
@@ -90,7 +91,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "reportlab", specifier = ">=4.0.0" }]
+requires-dist = [
+    { name = "click", specifier = ">=8.0.0" },
+    { name = "reportlab", specifier = ">=4.0.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [

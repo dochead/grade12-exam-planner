@@ -16,325 +16,63 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os
 import json
+import click
 
-# Unified exam data structure containing everything needed for rendering
-exam_timetable = {
-    "metadata": {
-        "title": "Grade 12 Exam Schedule Overview",
-        "year": 2025,
-        "planner_start_date": "2025-09-01",
-        "planner_end_date": "2025-11-29"
-    },
-    "exams": {
-        "trial": {
-            "display_name": "Trial Exams (September 2025)"
-        },
-        "final": {
-            "display_name": "Final Exams (October-November 2025)"
-        }
-    },
-    "subjects": {
-        "Life Orientation (L.O.)": {
-            "full_name": "Life Orientation (L.O.)",
-            "abbreviation": "Life Orientation (L.O.)",
-            "emoji": "🧭",
-            "color": [0.68, 0.85, 1.0],  # RGB values for colors.lightblue
-            "exam_types": {
-                "trial": {
-                    "exams": [
-                        {
-                            "paper": "CAT",
-                            "start_datetime": "2025-09-01T09:00:00",
-                            "end_datetime": "2025-09-01T11:30:00"
-                        }
-                    ]
-                },
-                "final": {
-                    "exams": []
-                }
-            }
-        },
-        "English Home Language": {
-            "full_name": "English Home Language",
-            "abbreviation": "Eng. Home Language",
-            "emoji": "📚",
-            "color": [0.94, 0.5, 0.5],  # RGB values for colors.lightcoral
-            "exam_types": {
-                "trial": {
-                    "exams": [
-                        {
-                            "paper": "Paper II",
-                            "start_datetime": "2025-09-02T09:00:00",
-                            "end_datetime": "2025-09-02T11:30:00"
-                        },
-                        {
-                            "paper": "Paper III",
-                            "start_datetime": "2025-09-09T09:00:00",
-                            "end_datetime": "2025-09-09T12:00:00"
-                        },
-                        {
-                            "paper": "Paper I",
-                            "start_datetime": "2025-09-11T09:00:00",
-                            "end_datetime": "2025-09-11T11:00:00"
-                        }
-                    ]
-                },
-                "final": {
-                    "exams": [
-                        {
-                            "paper": "Paper 3",
-                            "start_datetime": "2025-10-23T09:00:00",
-                            "end_datetime": "2025-10-23T12:00:00"
-                        },
-                        {
-                            "paper": "Paper 1",
-                            "start_datetime": "2025-10-29T09:00:00",
-                            "end_datetime": "2025-10-29T11:00:00"
-                        },
-                        {
-                            "paper": "Paper 2",
-                            "start_datetime": "2025-11-13T09:00:00",
-                            "end_datetime": "2025-11-13T11:30:00"
-                        }
-                    ]
-                }
-            }
-        },
-        "Afrikaans First Additional Language": {
-            "full_name": "Afrikaans First Additional Language",
-            "abbreviation": "Afr. First Additional Language",
-            "emoji": "🗣️",
-            "color": [0.56, 0.93, 0.56],  # RGB values for colors.lightgreen
-            "exam_types": {
-                "trial": {
-                    "exams": [
-                        {
-                            "paper": "Paper III",
-                            "start_datetime": "2025-09-04T09:00:00",
-                            "end_datetime": "2025-09-04T11:30:00"
-                        },
-                        {
-                            "paper": "Paper II",
-                            "start_datetime": "2025-09-12T09:00:00",
-                            "end_datetime": "2025-09-12T11:00:00"
-                        },
-                        {
-                            "paper": "Paper I",
-                            "start_datetime": "2025-09-18T09:00:00",
-                            "end_datetime": "2025-09-18T11:00:00"
-                        }
-                    ]
-                },
-                "final": {
-                    "exams": [
-                        {
-                            "paper": "Paper 3",
-                            "start_datetime": "2025-10-24T09:00:00",
-                            "end_datetime": "2025-10-24T11:30:00"
-                        },
-                        {
-                            "paper": "Paper 1",
-                            "start_datetime": "2025-11-11T09:00:00",
-                            "end_datetime": "2025-11-11T11:00:00"
-                        },
-                        {
-                            "paper": "Paper 2",
-                            "start_datetime": "2025-11-21T09:00:00",
-                            "end_datetime": "2025-11-21T11:30:00"
-                        }
-                    ]
-                }
-            }
-        },
-        "Mathematics": {
-            "full_name": "Mathematics",
-            "abbreviation": "Mathematics",
-            "emoji": "🧮",
-            "color": [1.0, 1.0, 0.88],  # RGB values for colors.lightyellow
-            "exam_types": {
-                "trial": {
-                    "exams": [
-                        {
-                            "paper": "Paper I",
-                            "start_datetime": "2025-09-08T09:00:00",
-                            "end_datetime": "2025-09-08T12:00:00"
-                        },
-                        {
-                            "paper": "Paper II",
-                            "start_datetime": "2025-09-22T09:00:00",
-                            "end_datetime": "2025-09-22T12:00:00"
-                        }
-                    ]
-                },
-                "final": {
-                    "exams": [
-                        {
-                            "paper": "Paper 1",
-                            "start_datetime": "2025-10-31T09:00:00",
-                            "end_datetime": "2025-10-31T12:00:00"
-                        },
-                        {
-                            "paper": "Paper 2",
-                            "start_datetime": "2025-11-03T09:00:00",
-                            "end_datetime": "2025-11-03T12:00:00"
-                        }
-                    ]
-                }
-            }
-        },
-        "Life Sciences": {
-            "full_name": "Life Sciences",
-            "abbreviation": "Life Sciences",
-            "emoji": "🧬",
-            "color": [1.0, 0.71, 0.76],  # RGB values for colors.lightpink
-            "exam_types": {
-                "trial": {
-                    "exams": [
-                        {
-                            "paper": "Paper I",
-                            "start_datetime": "2025-09-04T13:00:00",
-                            "end_datetime": "2025-09-04T15:30:00"
-                        },
-                        {
-                            "paper": "Paper II",
-                            "start_datetime": "2025-09-17T09:00:00",
-                            "end_datetime": "2025-09-17T11:30:00"
-                        }
-                    ]
-                },
-                "final": {
-                    "exams": [
-                        {
-                            "paper": "Paper 1",
-                            "start_datetime": "2025-11-14T09:00:00",
-                            "end_datetime": "2025-11-14T11:30:00"
-                        },
-                        {
-                            "paper": "Paper 2",
-                            "start_datetime": "2025-11-17T09:00:00",
-                            "end_datetime": "2025-11-17T11:30:00"
-                        }
-                    ]
-                }
-            }
-        },
-        "Information Technology": {
-            "full_name": "Information Technology",
-            "abbreviation": "Information Technology",
-            "emoji": "💻",
-            "color": [0.88, 1.0, 1.0],  # RGB values for colors.lightcyan
-            "exam_types": {
-                "trial": {
-                    "exams": [
-                        {
-                            "paper": "Paper II (Theory)",
-                            "start_datetime": "2025-09-09T13:30:00",
-                            "end_datetime": "2025-09-09T16:30:00"
-                        },
-                        {
-                            "paper": "Paper I (Practical)",
-                            "start_datetime": "2025-09-10T09:00:00",
-                            "end_datetime": "2025-09-10T12:00:00"
-                        }
-                    ]
-                },
-                "final": {
-                    "exams": [
-                        {
-                            "paper": "Paper 1 (Practical)",
-                            "start_datetime": "2025-10-22T09:00:00",
-                            "end_datetime": "2025-10-22T12:00:00"
-                        },
-                        {
-                            "paper": "Paper 2 (Theory)",
-                            "start_datetime": "2025-11-13T14:00:00",
-                            "end_datetime": "2025-11-13T17:00:00"
-                        },
-                        {
-                            "paper": "Practical Rewrite",
-                            "start_datetime": "2025-11-27T09:00:00",
-                            "end_datetime": "2025-11-27T12:00:00"
-                        }
-                    ]
-                }
-            }
-        },
-        "Physical Science": {
-            "full_name": "Physical Science",
-            "abbreviation": "Physical Science",
-            "emoji": "⚗️",
-            "color": [0.9, 0.9, 0.98],  # RGB values for colors.lavender
-            "exam_types": {
-                "trial": {
-                    "exams": [
-                        {
-                            "paper": "Paper I (Physics)",
-                            "start_datetime": "2025-09-15T09:00:00",
-                            "end_datetime": "2025-09-15T12:00:00"
-                        },
-                        {
-                            "paper": "Paper II (Chemistry)",
-                            "start_datetime": "2025-09-25T09:00:00",
-                            "end_datetime": "2025-09-25T12:00:00"
-                        }
-                    ]
-                },
-                "final": {
-                    "exams": [
-                        {
-                            "paper": "Paper 1 (Physics)",
-                            "start_datetime": "2025-11-07T09:00:00",
-                            "end_datetime": "2025-11-07T12:00:00"
-                        },
-                        {
-                            "paper": "Paper 2 (Chemistry)",
-                            "start_datetime": "2025-11-10T09:00:00",
-                            "end_datetime": "2025-11-10T12:00:00"
-                        }
-                    ]
-                }
-            }
-        }
-    }
-}
+def load_exam_data(filename="custom_data.json"):
+    """Load exam timetable data from JSON file and return it in current format"""
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            exam_timetable = json.load(f)
+        return exam_timetable
+    except FileNotFoundError:
+        click.echo(f"Error: JSON file '{filename}' not found.", err=True)
+        click.echo("Please ensure the exam data JSON file exists.", err=True)
+        raise click.Abort()
+    except json.JSONDecodeError as e:
+        click.echo(f"Error: Invalid JSON in '{filename}': {e}", err=True)
+        raise click.Abort()
+    except Exception as e:
+        click.echo(f"Error loading '{filename}': {e}", err=True)
+        raise click.Abort()
 
 # Custom colors
 dark_grey = colors.Color(0.3, 0.3, 0.3)  # Dark grey for text
 muted_grey = colors.Color(0.9, 0.9, 0.9)  # Muted grey for weekends
 
-def convert_to_legacy_format():
-    """Convert unified structure to legacy format for backward compatibility"""
-    trial_exams_converted = {}
-    final_exams_converted = {}
-    subject_colors_converted = {}
-    subject_abbreviations_converted = {}
-    subject_emojis_converted = {}
-    
-    for subject_name, subject_data in exam_timetable["subjects"].items():
-        # Extract subject info
-        subject_colors_converted[subject_name] = colors.Color(*subject_data["color"])
-        subject_abbreviations_converted[subject_name] = subject_data["abbreviation"]
-        subject_emojis_converted[subject_name] = subject_data["emoji"]
-        
-        # Extract trial exams
-        trial_exams_converted[subject_name] = []
-        for exam in subject_data["exam_types"]["trial"]["exams"]:
-            trial_exams_converted[subject_name].append({
-                "paper": exam["paper"],
+
+def build_runtime_structures(exam_timetable):
+    """Build in-memory structures from current JSON for rendering (colors, abbreviations, emojis, and parsed datetimes)."""
+    trial_exams = {}
+    final_exams = {}
+    subject_colors = {}
+    subject_abbreviations = {}
+    subject_emojis = {}
+
+    for subject_name, subject_data in exam_timetable.get("subjects", {}).items():
+        # Subject attributes
+        color_triplet = subject_data.get("color", [1, 1, 1])
+        subject_colors[subject_name] = colors.Color(*color_triplet)
+        subject_abbreviations[subject_name] = subject_data.get("abbreviation", subject_name)
+        subject_emojis[subject_name] = subject_data.get("emoji", "")
+
+        # Exams: parse ISO datetimes to datetime objects expected by renderer
+        trial_exams[subject_name] = []
+        for exam in subject_data.get("exam_types", {}).get("trial", {}).get("exams", []):
+            trial_exams[subject_name].append({
+                "paper": exam.get("paper", ""),
                 "start": datetime.fromisoformat(exam["start_datetime"]),
-                "end": datetime.fromisoformat(exam["end_datetime"])
+                "end": datetime.fromisoformat(exam["end_datetime"]),
             })
-        
-        # Extract final exams
-        final_exams_converted[subject_name] = []
-        for exam in subject_data["exam_types"]["final"]["exams"]:
-            final_exams_converted[subject_name].append({
-                "paper": exam["paper"],
+
+        final_exams[subject_name] = []
+        for exam in subject_data.get("exam_types", {}).get("final", {}).get("exams", []):
+            final_exams[subject_name].append({
+                "paper": exam.get("paper", ""),
                 "start": datetime.fromisoformat(exam["start_datetime"]),
-                "end": datetime.fromisoformat(exam["end_datetime"])
+                "end": datetime.fromisoformat(exam["end_datetime"]),
             })
-    
-    return trial_exams_converted, final_exams_converted, subject_colors_converted, subject_abbreviations_converted, subject_emojis_converted
+
+    return trial_exams, final_exams, subject_colors, subject_abbreviations, subject_emojis
 
 # Register both text and emoji fonts
 def register_fonts():
@@ -391,12 +129,8 @@ FONTS = register_fonts()
 TEXT_FONT = FONTS['text_font']
 EMOJI_FONT = FONTS['emoji_font']
 
-# Convert unified structure to legacy format for backward compatibility
-trial_exams, final_exams, subject_colors, subject_abbreviations, subject_emojis = convert_to_legacy_format()
 
-# Legacy variables are now generated from the unified structure above
-
-def create_exam_paragraph(subject, exam):
+def create_exam_paragraph(subject, exam, subject_emojis, subject_abbreviations):
     """Create a paragraph with emoji and text using different fonts"""
     emoji = subject_emojis[subject]
     subject_abbrev = subject_abbreviations[subject]
@@ -416,8 +150,9 @@ def create_exam_paragraph(subject, exam):
     
     return Paragraph(content, style)
 
-def create_exam_summary_page(doc_elements):
+def create_exam_summary_page(doc_elements, exam_timetable, legacy_data):
     """Create the first page with exam summary tables side by side"""
+    trial_exams, final_exams, subject_colors, subject_abbreviations, subject_emojis = legacy_data
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
@@ -539,7 +274,7 @@ def create_exam_summary_page(doc_elements):
     doc_elements.append(side_by_side_table)
     doc_elements.append(PageBreak())
 
-def get_exam_for_datetime(dt):
+def get_exam_for_datetime(dt, trial_exams, final_exams):
     """Check if there's an exam at the given datetime"""
     # Check trial exams first
     for subject, exams in trial_exams.items():
@@ -555,8 +290,9 @@ def get_exam_for_datetime(dt):
                 
     return None, None
 
-def create_daily_planner_pages(doc_elements):
+def create_daily_planner_pages(doc_elements, exam_timetable, legacy_data):
     """Create daily planner pages with 4 days per page"""
+    trial_exams, final_exams, subject_colors, subject_abbreviations, subject_emojis = legacy_data
     start_date = datetime.fromisoformat(exam_timetable['metadata']['planner_start_date'])
     end_date = datetime.fromisoformat(exam_timetable['metadata']['planner_end_date'])
     current_date = start_date
@@ -598,11 +334,11 @@ def create_daily_planner_pages(doc_elements):
             row_data = [time_str]
             for day in days:
                 dt = day.replace(hour=hour, minute=0, second=0, microsecond=0)
-                subject, exam = get_exam_for_datetime(dt)
+                subject, exam = get_exam_for_datetime(dt, trial_exams, final_exams)
 
                 day_content = ""
                 if subject and exam:
-                    day_content = create_exam_paragraph(subject, exam)
+                    day_content = create_exam_paragraph(subject, exam, subject_emojis, subject_abbreviations)
 
                 row_data.append(day_content)
 
@@ -660,10 +396,11 @@ def create_daily_planner_pages(doc_elements):
         if current_date <= end_date:
             doc_elements.append(PageBreak())
 
-def generate_pdf():
+def generate_pdf(exam_timetable, legacy_data, filename=None):
     """Generate the complete PDF day planner"""
     year = exam_timetable['metadata']['year']
-    filename = f"Grade12_Exam_Day_Planner_{year}.pdf"
+    if filename is None:
+        filename = f"Grade12_Exam_Day_Planner_{year}.pdf"
     doc = SimpleDocTemplate(filename, pagesize=landscape(A4),
                             rightMargin=0.5*inch, leftMargin=0.5*inch,
                             topMargin=0.5*inch, bottomMargin=0.5*inch)
@@ -671,10 +408,10 @@ def generate_pdf():
     doc_elements = []
 
     # Create exam summary page
-    create_exam_summary_page(doc_elements)
+    create_exam_summary_page(doc_elements, exam_timetable, legacy_data)
 
     # Create daily planner pages
-    create_daily_planner_pages(doc_elements)
+    create_daily_planner_pages(doc_elements, exam_timetable, legacy_data)
 
     # Build the PDF
     doc.build(doc_elements)
@@ -682,9 +419,8 @@ def generate_pdf():
 
     return filename
 
-def export_exam_data_to_json():
+def export_exam_data_to_json(exam_timetable, filename="exam_timetable.json"):
     """Export the exam timetable data to JSON file"""
-    filename = "exam_timetable.json"
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(exam_timetable, f, indent=2, ensure_ascii=False)
@@ -692,13 +428,35 @@ def export_exam_data_to_json():
     except Exception as e:
         print(f"Failed to export exam data: {e}")
 
-def main():
-    """Entry point for the exam-planner command"""
-    # Export exam data to JSON
-    export_exam_data_to_json()
+@click.command()
+@click.option('--input', '-i', 'input_file', default='custom_data.json', help='Input JSON file with exam data (default: custom_data.json)')
+@click.option('--output', '-o', default=None, help='Output PDF filename (default: Grade12_Exam_Day_Planner_{year}.pdf)')
+@click.option('--verbose', '-v', is_flag=True, help='Verbose output')
+def main(input_file, output, verbose):
+    """Generate Grade 12 exam day planner PDF from JSON data file with color-coded subjects and highlighted exam periods."""
+    
+    if verbose:
+        click.echo("Starting Grade 12 Exam Day Planner generation...")
+        click.echo(f"Loading exam data from: {input_file}")
+    
+    # Load exam data from JSON file
+    exam_timetable = load_exam_data(input_file)
+
+    # Build runtime structures from current JSON (replaces legacy conversion)
+    legacy_data = build_runtime_structures(exam_timetable)
+    
+    if verbose:
+        click.echo("✓ Exam data loaded successfully")
     
     # Generate PDF
-    generate_pdf()
+    if verbose:
+        click.echo("Generating PDF...")
+    pdf_filename = generate_pdf(exam_timetable, legacy_data, output)
+    
+    if verbose:
+        click.echo(f"✓ PDF generated successfully: {pdf_filename}")
+    else:
+        click.echo(f"Generated: {pdf_filename}")
 
 if __name__ == "__main__":
     main()
