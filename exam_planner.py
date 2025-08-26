@@ -130,15 +130,35 @@ TEXT_FONT = FONTS['text_font']
 EMOJI_FONT = FONTS['emoji_font']
 
 
+def _format_duration(delta: timedelta) -> str:
+    total_minutes = int(delta.total_seconds() // 60)
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    parts = []
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    return " ".join(parts) if parts else "0m"
+
+
 def create_exam_paragraph(subject, exam, subject_emojis, subject_abbreviations):
-    """Create a paragraph with emoji and text using different fonts"""
+    """Create a paragraph with emoji and text using different fonts, including time window and duration"""
     emoji = subject_emojis[subject]
     subject_abbrev = subject_abbreviations[subject]
     paper = exam['paper']
-    
+    start = exam['start']
+    end = exam['end']
+    duration = end - start
+    time_str = f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')} ({_format_duration(duration)})"
+
     # Create paragraph with mixed fonts - emoji font for emoji, bold text font for text
-    content = f'<font name="{EMOJI_FONT}">{emoji}</font> <font name="{TEXT_FONT}"><b>{subject_abbrev}<br/>{paper}</b></font>'
-    
+    content = (
+        f'<font name="{EMOJI_FONT}">{emoji}</font> '
+        f'<font name="{TEXT_FONT}"><b>{subject_abbrev}<br/>{paper}</b><br/>'
+        f'{time_str}</font>'
+    )
+
     # Create paragraph style
     style = ParagraphStyle(
         'ExamStyle',
@@ -147,7 +167,7 @@ def create_exam_paragraph(subject, exam, subject_emojis, subject_abbreviations):
         alignment=TA_CENTER,
         leading=10  # Increased leading proportionally
     )
-    
+
     return Paragraph(content, style)
 
 def create_exam_summary_page(doc_elements, exam_timetable, legacy_data):
@@ -322,6 +342,22 @@ def create_daily_planner_pages(doc_elements, exam_timetable, legacy_data):
         headers = ['Time'] + [day.strftime('%a, %b %d') for day in days]
         table_data = [headers]
 
+        # Precompute mapping of day index -> list of (subject, exam)
+        day_exams = {i: [] for i in range(len(days))}
+        for subj, exams in trial_exams.items():
+            for ex in exams:
+                for i, d in enumerate(days):
+                    if ex['start'].date() == d.date():
+                        day_exams[i].append((subj, ex))
+        for subj, exams in final_exams.items():
+            for ex in exams:
+                for i, d in enumerate(days):
+                    if ex['start'].date() == d.date():
+                        day_exams[i].append((subj, ex))
+        # sort exams per day by start time
+        for i in day_exams:
+            day_exams[i].sort(key=lambda se: se[1]['start'])
+
         for hour in range(7, 24):  # 7 AM to 11 PM
             if hour == 12:
                 time_str = "12:00 PM"
@@ -330,19 +366,55 @@ def create_daily_planner_pages(doc_elements, exam_timetable, legacy_data):
             else:
                 time_str = f"{hour}:00 AM"
 
-            # Check for exams at this time for all days
-            row_data = [time_str]
-            for day in days:
-                dt = day.replace(hour=hour, minute=0, second=0, microsecond=0)
-                subject, exam = get_exam_for_datetime(dt, trial_exams, final_exams)
-
-                day_content = ""
-                if subject and exam:
-                    day_content = create_exam_paragraph(subject, exam, subject_emojis, subject_abbreviations)
-
-                row_data.append(day_content)
-
+            # Initialize row with time label and placeholders
+            row_data = [time_str] + ["" for _ in days]
             table_data.append(row_data)
+
+        # Now populate cells and create spans for qualified items
+        first_hour = 7
+        def needs_merge(ex):
+            start, end = ex['start'], ex['end']
+            duration = end - start
+            crosses_hour = start.hour != end.hour
+            over_hour = duration >= timedelta(hours=1)
+            # merge if > 1 hour or crosses hour boundary
+            return over_hour or crosses_hour
+
+        table_style_spans = []
+        table_style_backgrounds = []
+
+        for day_idx, se_list in day_exams.items():
+            col = 1 + day_idx
+            for subject, exam in se_list:
+                start = exam['start']
+                end = exam['end']
+                # compute start/end row indices within table_data (account for header row)
+                start_row = 1 + (start.hour - first_hour)
+                start_row = max(1, start_row)
+                end_row = 1 + (end.hour - first_hour)
+                # If exam ends exactly on an hour and doesn't cross into the next hour, we still want merge only if duration >=1h
+                # Ensure end_row at least start_row
+                if end_row < start_row:
+                    end_row = start_row
+
+                # Place content only in the start row
+                if 1 <= start_row < len(table_data):
+                    table_data[start_row][col] = create_exam_paragraph(subject, exam, subject_emojis, subject_abbreviations)
+
+                # Decide if we should span across rows
+                if needs_merge(exam):
+                    # If the exam crosses into the next hour with minutes, include the end hour row as part of span
+                    if start.hour != end.hour and (end.minute > 0 or start.minute > 0 or (end - start) >= timedelta(hours=1)):
+                        # include the end hour row as a visual block
+                        pass  # end_row already points to the end hour row
+                    # Apply SPAN from start_row to end_row (clamp within table bounds)
+                    span_end = max(start_row, min(end_row, len(table_data) - 1))
+                    table_style_spans.append(('SPAN', (col, start_row), (col, span_end)))
+                    # Background over the spanned area
+                    table_style_backgrounds.append(('BACKGROUND', (col, start_row), (col, span_end), subject_colors[subject]))
+                else:
+                    # Not merged: just color the single cell
+                    table_style_backgrounds.append(('BACKGROUND', (col, start_row), (col, start_row), subject_colors[subject]))
 
         # Create the table with dynamic column widths for landscape orientation
         # Available width in landscape A4 is about 10.2 inches (11.7 - 1.5 for margins)
@@ -370,21 +442,11 @@ def create_daily_planner_pages(doc_elements, exam_timetable, legacy_data):
             if day.weekday() >= 5:  # Saturday or Sunday
                 table_style.append(('BACKGROUND', (idx + 1, 1), (idx + 1, -1), muted_grey))
 
-        # Highlight exam blocks
-        for row_idx, row_data in enumerate(table_data[1:], 1):
-            for col_idx, day_content in enumerate(row_data[1:], 1):  # Skip time column
-                if day_content:  # If there's content (Paragraph object), it's an exam
-                    # For Paragraph objects, we need to check the text content
-                    if hasattr(day_content, 'text'):
-                        content_text = day_content.text
-                    else:
-                        content_text = str(day_content)
-                    
-                    # Find the subject to get the right color
-                    for subject in subject_colors:
-                        if subject_abbreviations[subject] in content_text:
-                            table_style.append(('BACKGROUND', (col_idx, row_idx), (col_idx, row_idx), subject_colors[subject]))
-                            break
+        # Apply computed spans and backgrounds for exams
+        for span in table_style_spans:
+            table_style.append(span)
+        for bg in table_style_backgrounds:
+            table_style.append(bg)
 
         day_table.setStyle(TableStyle(table_style))
         doc_elements.append(day_table)
